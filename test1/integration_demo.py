@@ -91,10 +91,12 @@ def simpson_method(f, a, b, n):
 
 # ========== 可视化：积分区域几何意义 ==========
 def plot_integration_geometry(a, b, n=8):
-    """绘制三种方法的几何意义对比图"""
+    """绘制三种方法的几何意义对比图（需要 matplotlib）"""
+    if not HAS_MATPLOTLIB:
+        return
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
-    x_fine = np.linspace(a, b, 1000)
-    y_fine = f(x_fine)
+    x_fine = linspace(a, b, 1000)
+    y_fine = [f(x) for x in x_fine]
 
     methods = [
         ("矩形法（中点）", rectangle_method, "skyblue"),
@@ -108,37 +110,34 @@ def plot_integration_geometry(a, b, n=8):
 
         h = (b - a) / n
         if method == rectangle_method:
-            # 画矩形
-            x_mid = np.linspace(a + h / 2, b - h / 2, n)
-            for i, xm in enumerate(x_mid):
+            for i in range(n):
                 xi = a + i * h
+                xm = xi + h / 2
                 rect = plt.Rectangle(
                     (xi, 0), h, f(xm),
                     edgecolor="black", facecolor=color, alpha=0.6
                 )
                 ax.add_patch(rect)
         elif method == trapezoidal_method:
-            # 画梯形
-            x_nodes = np.linspace(a, b, n + 1)
             for i in range(n):
-                x0, x1 = x_nodes[i], x_nodes[i + 1]
+                x0, x1 = a + i * h, a + (i + 1) * h
                 y0, y1 = f(x0), f(x1)
                 ax.fill(
                     [x0, x1, x1, x0], [0, 0, y1, y0],
                     edgecolor="black", facecolor=color, alpha=0.6
                 )
         else:
-            # 辛普森法：用抛物线近似，这里用曲线段示意
-            x_nodes = np.linspace(a, b, n + 1)
             for i in range(0, n, 2):
-                x0, x1, x2 = x_nodes[i], x_nodes[i + 1], x_nodes[i + 2]
-                xs = np.linspace(x0, x2, 50)
-                # 拉格朗日插值抛物线
+                x0, x1, x2 = a + i * h, a + (i + 1) * h, a + (i + 2) * h
+                xs = linspace(x0, x2, 50)
                 y0, y1, y2 = f(x0), f(x1), f(x2)
-                L0 = (xs - x1) * (xs - x2) / ((x0 - x1) * (x0 - x2))
-                L1 = (xs - x0) * (xs - x2) / ((x1 - x0) * (x1 - x2))
-                L2 = (xs - x0) * (xs - x1) / ((x2 - x0) * (x2 - x1))
-                ys = y0 * L0 + y1 * L1 + y2 * L2
+                d01, d02, d12 = x0 - x1, x0 - x2, x1 - x2
+                ys = []
+                for xv in xs:
+                    L0 = (xv - x1) * (xv - x2) / (d01 * d02)
+                    L1 = (xv - x0) * (xv - x2) / ((x1 - x0) * d12)
+                    L2 = (xv - x0) * (xv - x1) / ((x2 - x0) * (x2 - x1))
+                    ys.append(y0 * L0 + y1 * L1 + y2 * L2)
                 ax.fill_between(xs, ys, edgecolor="black",
                                 facecolor=color, alpha=0.6)
 
@@ -159,8 +158,10 @@ def plot_integration_geometry(a, b, n=8):
 
 # ========== 可视化：误差收敛分析 ==========
 def plot_error_convergence(a, b):
-    """绘制不同 n 下各方法的误差收敛曲线"""
-    ns = np.array([4, 8, 16, 32, 64, 128, 256, 512])
+    """绘制不同 n 下各方法的误差收敛曲线（需要 matplotlib）"""
+    if not HAS_MATPLOTLIB:
+        return
+    ns = [4, 8, 16, 32, 64, 128, 256, 512]
     exact = exact_integral(a, b)
 
     errors = {
@@ -181,10 +182,10 @@ def plot_error_convergence(a, b):
                   linewidth=2, label=name)
 
     # 参考斜率线
-    n_ref = np.array([ns[0], ns[-1]])
-    ax.loglog(n_ref, errors["梯形法"][0] * (n_ref[0] / n_ref) ** 2,
+    n_ref = [ns[0], ns[-1]]
+    ax.loglog(n_ref, [errors["梯形法"][0] * (ns[0] / n) ** 2 for n in n_ref],
               "k--", alpha=0.5, label=r"$O(n^{-2})$ 参考")
-    ax.loglog(n_ref, errors["辛普森法"][0] * (n_ref[0] / n_ref) ** 4,
+    ax.loglog(n_ref, [errors["辛普森法"][0] * (ns[0] / n) ** 4 for n in n_ref],
               "k:", alpha=0.5, label=r"$O(n^{-4})$ 参考")
 
     ax.set_xlabel("区间数 n", fontsize=12)
@@ -239,13 +240,18 @@ def main():
     print(f"  辛普森法误差: {err_s:.2e}")
     print()
 
-    # 生成可视化
-    print("正在生成可视化图像...")
-    plot_integration_geometry(a, b, n=8)
-    plot_error_convergence(a, b)
-
-    print()
-    print("演示完成！图像已保存到 outputs 目录。")
+    # 生成可视化（仅当 matplotlib 可用时）
+    if HAS_MATPLOTLIB:
+        print("正在生成可视化图像...")
+        plot_integration_geometry(a, b, n=8)
+        plot_error_convergence(a, b)
+        print()
+        print("演示完成！图像已保存到 outputs 目录。")
+    else:
+        print("[提示] 未安装 matplotlib，已跳过图像生成。")
+        print("  如需生成可视化图像，请安装：python -m pip install matplotlib")
+        print()
+        print("演示完成（数值计算部分已执行）。")
 
 
 if __name__ == "__main__":
